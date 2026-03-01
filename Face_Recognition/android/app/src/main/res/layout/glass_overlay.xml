@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 眼鏡鏡片上顯示的 AR 畫面：全螢幕 + 大字體 + 黑色背景（透明效果） -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#CC000000">
+
+    <!-- 辨識結果區域（置中偏下） -->
+    <LinearLayout
+        android:id="@+id/resultContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <!-- 狀態圖示 -->
+        <TextView
+            android:id="@+id/tvGlassIcon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✅"
+            android:textSize="60sp"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 人名 -->
+        <TextView
+            android:id="@+id/tvGlassName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="72sp"
+            android:textStyle="bold"
+            android:textColor="#00FF00"
+            android:shadowColor="#000000"
+            android:shadowDx="2"
+            android:shadowDy="2"
+            android:shadowRadius="4" />
+
+        <!-- 信心度 -->
+        <TextView
+            android:id="@+id/tvGlassConfidence"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="36sp"
+            android:textColor="#AAFFFFFF"
+            android:layout_marginTop="8dp" />
+
+    </LinearLayout>
+
+    <!-- 等待偵測中的提示（預設顯示） -->
+    <LinearLayout
+        android:id="@+id/scanningContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="visible">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="👁️"
+            android:textSize="48sp"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tvGlassScanning"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="偵測中..."
+            android:textSize="36sp"
+            android:textColor="#88FFFFFF" />
+
+    </LinearLayout>
+
+    <!-- 底部狀態列 -->
+    <TextView
+        android:id="@+id/tvGlassStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="24dp"
+        android:text="🟢 已連線"
+        android:textSize="18sp"
+        android:textColor="#88FFFFFF" />
+
+</FrameLayout>

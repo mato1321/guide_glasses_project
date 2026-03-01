@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Rokid 眼鏡 USB 攝像頭（UVC 裝置） -->
+    <!-- class 14 = Video, subclass 1 = Video Control -->
+    <usb-device class="14" subclass="1" />
+    <usb-device class="14" subclass="2" />
+
+    <!-- 如果你知道 Rokid 的 vendor-id，可以加上更精確的過濾 -->
+    <!-- <usb-device vendor-id="10291" /> -->
+</resources>
