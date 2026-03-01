@@ -1,1 +1,50 @@
-venv
+# ===== Git 相關 =====
+.gitignore
+
+# ===== Python =====
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.env
+
+# ===== Android & C/C++ =====
+.gradle/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+android/build/
+android/app/build/
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+*.iml
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 專案特定 (測試檔案、人臉資料與模型) =====
+python-server/test_engine.py
+python-server/test_api.py
+python-server/face_database/*/
+*.onnx
+*.pt
+
+# ===== 日誌、暫存與多媒體 (全域) =====
+*.jpg
+*.jpeg
+*.png
+*.log
+*.tmp
+temp/
