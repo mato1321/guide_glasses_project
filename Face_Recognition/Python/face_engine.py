@@ -1,8 +1,3 @@
-"""
-人臉辨識引擎 - 改用 InsightFace（支援 Windows）
-功能跟你原本用 InspireFace 的程式碼完全一樣
-"""
-
 import cv2
 import numpy as np
 import os
@@ -11,38 +6,29 @@ from insightface.app import FaceAnalysis
 
 
 class FaceEngine:
-    """人臉辨識引擎（基於 InsightFace）"""
-
     def __init__(self, db_path="face_database", similarity_threshold=0.4):
         self.db_path = db_path
         self.similarity_threshold = similarity_threshold
         self.face_database = {}
-
-        # ===== 改動 1：模型從 buffalo_sc 改成 buffalo_l =====
         self.app = FaceAnalysis(
-            name="buffalo_l",      # ← 改這裡！從 buffalo_sc 改成 buffalo_l
+            name="buffalo_l",     
             providers=["CPUExecutionProvider"]
         )
         self.app.prepare(ctx_id=0, det_size=(640, 640))
-        print("✅ InsightFace 引擎初始化完成（buffalo_l 高精度模型）")
-
-    # ==============================================
-    # 資料庫管理
-    # ==============================================
-
+        print("InsightFace Successfully Initialized\n")
+    
+    # database management
     def load_database(self):
-        """從資料夾載入所有已知人臉"""
         if not os.path.exists(self.db_path):
             os.makedirs(self.db_path)
-            print(f"📁 已建立資料夾：{self.db_path}")
+            print(f"已建立資料夾：face_database")
             return
 
         for person_name in os.listdir(self.db_path):
             person_path = os.path.join(self.db_path, person_name)
             if not os.path.isdir(person_path):
                 continue
-
-            print(f"📥 載入 {person_name} 的人臉特徵...")
+            print(f"loading {person_name}")
             face_features = []
 
             for img_file in os.listdir(person_path):
@@ -51,28 +37,25 @@ class FaceEngine:
                     image = cv2.imread(img_path)
                     if image is None:
                         continue
-
-                    # 偵測人臉 + 提取特徵（InsightFace 一步搞定）
+                    # Detect face and extract features
                     faces = self.app.get(image)
                     if faces:
                         face_features.append(faces[0].embedding)
-                        print(f"   ✅ 已載入 {img_file}")
+                        print(f"Successfully loaded {img_file}")
                     else:
-                        print(f"   ❌ 未偵測到人臉：{img_file}")
+                        print(f"Failed to detect face in {img_file}")
 
             if face_features:
                 self.face_database[person_name] = np.mean(face_features, axis=0)
-                print(f"   📊 {person_name}：共 {len(face_features)} 張圖片\n")
+                print(f"{person_name}： {len(face_features)} pictures\n")
             else:
-                print(f"   ⚠️ {person_name}：沒有有效的人臉圖片\n")
+                print(f"{person_name}: No valid face images\n")
 
-        print(f"🗄️ 資料庫載入完成，共 {len(self.face_database)} 人")
-        print(f"   名單：{list(self.face_database.keys())}\n")
+        print(f"database loaded, total {len(self.face_database)} people")
+        print(f"{list(self.face_database.keys())}\n")
 
     def register_face(self, name, image):
-        """註冊一張新的人臉"""
         faces = self.app.get(image)
-
         if not faces:
             return {"success": False, "message": "圖片中未偵測到人臉"}
         if len(faces) > 1:
@@ -105,7 +88,7 @@ class FaceEngine:
             return {"success": False, "message": f"註冊失敗：{str(e)}"}
 
     def delete_face(self, name):
-        """刪除已註冊的人臉"""
+        
         if name not in self.face_database:
             return {"success": False, "message": f"找不到 {name}"}
 
@@ -117,16 +100,10 @@ class FaceEngine:
         return {"success": True, "message": f"已刪除 {name}"}
 
     def get_registered_names(self):
-        """取得所有已註冊的人名"""
         return list(self.face_database.keys())
-
-    # ==============================================
-    # 人���辨識核心
-    # ==============================================
 
     @staticmethod
     def cosine_similarity(feature1, feature2):
-        """計算餘弦相似度（跟你原本的 calculate_similarity 一樣）"""
         if feature1 is None or feature2 is None:
             return 0.0
         norm1 = np.linalg.norm(feature1)
@@ -136,10 +113,6 @@ class FaceEngine:
         return float(np.dot(feature1, feature2) / (norm1 * norm2))
 
     def recognize(self, image):
-        """
-        核心辨識函數：輸入一張圖片，回傳辨識結果
-        回傳格式跟你原本的程式碼完全一致
-        """
         if not self.face_database:
             return []
 
@@ -149,8 +122,6 @@ class FaceEngine:
         for face in faces:
             bbox = face.bbox  # [x1, y1, x2, y2]
             current_feature = face.embedding
-
-            # 跟資料庫比對（你原本的邏輯）
             best_match = None
             best_similarity = 0.0
 
