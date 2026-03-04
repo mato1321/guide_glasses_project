@@ -46,7 +46,6 @@ async def root():
 async def recognize(file: UploadFile = File(...)):
     """
     🔍 人臉辨識 API
-    上傳一張圖片 → 回傳辨識結果
     """
     image = await read_image_from_upload(file)
 
@@ -55,6 +54,12 @@ async def recognize(file: UploadFile = File(...)):
             status_code=400,
             content={"error": "無法解析圖片"}
         )
+
+    # ===== 除錯：存下收到的圖片 =====
+    import cv2
+    cv2.imwrite("debug_received.jpg", image)
+    print(f"📸 收到圖片：{image.shape[1]}x{image.shape[0]}")
+    # ===== 除錯結束 =====
 
     results = engine.recognize(image)
 
