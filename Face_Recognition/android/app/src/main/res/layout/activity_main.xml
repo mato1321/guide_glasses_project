@@ -1,105 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:gravity="center_horizontal">
+    android:background="#000000">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Rokid 人臉辨識控制台"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="12dp" />
-
-    <!-- 伺服器狀態 -->
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="伺服器狀態：未連線"
-        android:textSize="14sp"
-        android:padding="8dp"
-        android:background="#F0F0F0"
-        android:layout_marginBottom="8dp" />
-
-    <!-- 眼鏡狀態 -->
-    <TextView
-        android:id="@+id/tvGlassStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="眼鏡狀態：未連接"
-        android:textSize="14sp"
-        android:padding="8dp"
-        android:background="#FFF3E0"
-        android:layout_marginBottom="8dp" />
-
-    <!-- 攝像頭預覽 -->
+    <!-- 全螢幕攝像頭預覽 -->
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginBottom="8dp" />
+        android:layout_height="match_parent" />
 
-    <!-- 辨識結果 -->
-    <TextView
-        android:id="@+id/tvResult"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="辨識結果：等待中..."
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:padding="12dp"
-        android:background="#E8F5E9"
-        android:minHeight="50dp"
-        android:layout_marginBottom="8dp" />
-
-    <!-- 自動偵測開關 -->
+    <!-- 底部半透明結果區域 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="8dp">
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="#AA000000"
+        android:padding="20dp">
 
         <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="🔄 自動持續偵測"
-            android:textSize="16sp" />
-
-        <Switch
-            android:id="@+id/switchAuto"
+            android:id="@+id/tvResult"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:text="偵測中..."
+            android:textSize="32sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:gravity="center"
+            android:shadowColor="#000000"
+            android:shadowDx="2"
+            android:shadowDy="2"
+            android:shadowRadius="4" />
+
     </LinearLayout>
 
-    <!-- 按鈕 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center">
-
-        <Button
-            android:id="@+id/btnCapture"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="拍照辨識"
-            android:layout_marginEnd="4dp" />
-
-        <Button
-            android:id="@+id/btnConnect"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="連線測試"
-            android:layout_marginStart="4dp" />
-    </LinearLayout>
-
-</LinearLayout>
+</FrameLayout>

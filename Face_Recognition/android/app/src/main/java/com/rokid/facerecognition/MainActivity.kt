@@ -5,15 +5,12 @@ import android.media.MediaPlayer
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.util.Log
-import android.widget.Button
-import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -39,24 +36,19 @@ import java.util.concurrent.atomic.AtomicBoolean
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var previewView: PreviewView
-    private lateinit var tvStatus: TextView
     private lateinit var tvResult: TextView
-    private lateinit var btnCapture: Button
-    private lateinit var btnConnect: Button
-    private lateinit var switchAuto: Switch
 
     private lateinit var tts: TextToSpeech
     private lateinit var cameraExecutor: ExecutorService
 
-    // 持續偵測
+    // 自動偵測（每 10 秒）
     private val handler = Handler(Looper.getMainLooper())
-    private var isAutoDetecting = false
-    private val detectIntervalMs = 3000L
+    private val detectIntervalMs = 10000L
 
     // 防止同時送多個請求
     private val isProcessing = AtomicBoolean(false)
 
-    // 最新的 JPEG bytes（直接存 JPEG，不做 YUV 轉換）
+    // 最新的 JPEG bytes
     private var latestJpegBytes: ByteArray? = null
     private val jpegLock = Object()
 
@@ -65,35 +57,29 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var lastAnnounceTime = 0L
     private val announceCooldown = 10000L
 
-    private val TAG = "MainActivity"
+    // TTS 是否可用
+    private var ttsReady = false
+
+    private val TAG = "FaceRecognition"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // 全螢幕沉浸模式
+        window.decorView.systemUiVisibility = (
+                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                        or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                )
+
         previewView = findViewById(R.id.previewView)
-        tvStatus = findViewById(R.id.tvStatus)
         tvResult = findViewById(R.id.tvResult)
-        btnCapture = findViewById(R.id.btnCapture)
-        btnConnect = findViewById(R.id.btnConnect)
-        switchAuto = findViewById(R.id.switchAuto)
 
         tts = TextToSpeech(this, this)
         cameraExecutor = Executors.newSingleThreadExecutor()
 
-        btnConnect.setOnClickListener {
-            // 測試語音
-            tts.speak("測試語音", TextToSpeech.QUEUE_FLUSH, null, "test")
-            speakWithMediaPlayer("測試語音")
-            // 原本的連線測試
-            testConnection()
-        }
-        btnCapture.setOnClickListener { captureAndRecognize() }
-
-        switchAuto.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) startAutoDetection() else stopAutoDetection()
-        }
-
+        // 檢查相機權限
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             == PackageManager.PERMISSION_GRANTED
         ) {
@@ -105,7 +91,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    // ===== 相機：用 JPEG 格式直接輸出，避免 YUV 問題 =====
+    // ===== 相機 =====
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
@@ -113,7 +99,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
 
-            // 預覽
             val preview = Preview.Builder()
                 .setTargetResolution(android.util.Size(640, 480))
                 .build()
@@ -121,7 +106,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     it.setSurfaceProvider(previewView.getSurfaceProvider())
                 }
 
-            // 影像分析：強制 RGBA 輸出（不用 YUV）
             val imageAnalysis = ImageAnalysis.Builder()
                 .setTargetResolution(android.util.Size(640, 480))
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -150,15 +134,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageAnalysis
                 )
-                tvStatus.text = "📷 相機已啟動"
+                // 相機啟動成功，開始自動偵測
+                startAutoDetection()
             } catch (e: Exception) {
-                tvStatus.text = "❌ 相機啟動失敗：${e.message}"
+                tvResult.text = "相機啟動失敗"
                 Log.e(TAG, "相機失敗", e)
             }
         }, ContextCompat.getMainExecutor(this))
     }
 
-    // ===== RGBA → JPEG（安全轉換，不依賴 YUV）=====
+    // ===== RGBA → JPEG =====
 
     private fun rgbaToJpeg(imageProxy: ImageProxy): ByteArray? {
         return try {
@@ -169,17 +154,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val width = imageProxy.width
             val height = imageProxy.height
 
-            // 建立 Bitmap
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
 
-            // 處理 row padding
             if (rowStride == width * pixelStride) {
-                // 沒有 padding，直接複製
                 buffer.rewind()
                 bitmap.copyPixelsFromBuffer(buffer)
             } else {
-                // 有 padding，逐行複製
-                val rowBytes = width * pixelStride
                 val rowBuffer = ByteArray(rowStride)
                 val pixels = IntArray(width)
 
@@ -199,7 +179,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             }
 
-            // 處理旋轉
             val rotation = imageProxy.imageInfo.rotationDegrees
             val finalBitmap = if (rotation != 0) {
                 val matrix = Matrix()
@@ -213,13 +192,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 bitmap
             }
 
-            // Bitmap → JPEG bytes
             val stream = ByteArrayOutputStream()
             finalBitmap.compress(Bitmap.CompressFormat.JPEG, 75, stream)
             finalBitmap.recycle()
             val jpegBytes = stream.toByteArray()
             stream.close()
-
             jpegBytes
         } catch (e: Exception) {
             Log.e(TAG, "RGBA→JPEG 失敗：${e.message}")
@@ -227,31 +204,22 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    // ===== 持續自動偵測 =====
+    // ===== 自動偵測（App 啟動就開始，每 10 秒一次）=====
 
     private val autoDetectRunnable = object : Runnable {
         override fun run() {
-            if (isAutoDetecting) {
-                captureAndRecognize()
-                handler.postDelayed(this, detectIntervalMs)
-            }
+            captureAndRecognize()
+            handler.postDelayed(this, detectIntervalMs)
         }
     }
 
     private fun startAutoDetection() {
-        isAutoDetecting = true
-        btnCapture.isEnabled = false
-        btnCapture.text = "🔄 自動偵測中..."
-        tvResult.text = "🔄 自動偵測已開啟（每 ${detectIntervalMs / 1000} 秒）"
+        tvResult.text = "偵測中..."
         handler.post(autoDetectRunnable)
     }
 
     private fun stopAutoDetection() {
-        isAutoDetecting = false
         handler.removeCallbacks(autoDetectRunnable)
-        btnCapture.isEnabled = true
-        btnCapture.text = "📷 拍照辨識"
-        tvResult.text = "自動偵測已關閉"
     }
 
     // ===== 擷取並辨識 =====
@@ -265,20 +233,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         if (jpegBytes == null) {
-            if (!isAutoDetecting) tvResult.text = "❌ 尚未取得影像，請稍候"
             isProcessing.set(false)
             return
-        }
-
-        if (!isAutoDetecting) {
-            tvResult.text = "⏳ 辨識中..."
-            btnCapture.isEnabled = false
         }
 
         sendToServer(jpegBytes)
     }
 
-    // ===== 送到伺服器（直接送 JPEG bytes，不再轉換）=====
+    // ===== 送到伺服器 =====
 
     private fun sendToServer(jpegBytes: ByteArray) {
         lifecycleScope.launch {
@@ -293,83 +255,86 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 if (response.isSuccessful) {
                     val result = response.body()!!
                     displayResult(result)
-                } else {
-                    if (!isAutoDetecting) tvResult.text = "❌ 伺服器錯誤：${response.code()}"
                 }
             } catch (e: Exception) {
-                if (!isAutoDetecting) tvResult.text = "❌ 連線失敗：${e.message}"
-                Log.e(TAG, "送出失敗", e)
+                Log.e(TAG, "連線失敗", e)
             } finally {
                 isProcessing.set(false)
-                if (!isAutoDetecting) btnCapture.isEnabled = true
             }
         }
     }
 
-    // ===== 顯示結果 + TTS =====
+    // ===== 顯示結果 + 語音播報 =====
 
     private fun displayResult(result: RecognizeResponse) {
         if (result.faces.isEmpty()) {
-            tvResult.text = if (isAutoDetecting) "🔄 偵測中...（未發現人臉）" else "❌ 未偵測到人臉"
+            tvResult.text = "未偵測到人臉"
             return
         }
 
+        // 只取信心度最高的
         val bestFace = result.faces.maxByOrNull { it.confidence } ?: return
-        val sb = StringBuilder()
-        sb.appendLine("偵測到 ${result.face_count} 張人臉，最佳匹配：")
 
         if (bestFace.name != "unknown") {
-            sb.appendLine("✅ ${bestFace.name}（${(bestFace.confidence * 100).toInt()}%）")
+            val confidence = (bestFace.confidence * 100).toInt()
+            tvResult.text = "${bestFace.name}  ${confidence}%"
 
+            // 語音播報（每 10 秒一次）
             val now = System.currentTimeMillis()
             if (bestFace.name != lastAnnounceName || now - lastAnnounceTime > announceCooldown) {
                 lastAnnounceName = bestFace.name
                 lastAnnounceTime = now
 
-                val message = "前方是${bestFace.name}"
-                Log.d(TAG, "🔊 嘗試 TTS 播報：$message")
+                val message = "你面前的人是${bestFace.name}"
+                Log.d(TAG, "🔊 播報：$message")
 
-                // 方法 1：用 TTS 引擎
-                val speakResult = tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, bestFace.name)
-
-                if (speakResult == TextToSpeech.ERROR) {
-                    Log.e(TAG, "❌ TTS 失敗，改用 MediaPlayer")
-                    // 方法 2：備用 MediaPlayer
+                if (ttsReady) {
+                    val speakResult = tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, bestFace.name)
+                    if (speakResult == TextToSpeech.ERROR) {
+                        speakWithMediaPlayer(message)
+                    }
+                } else {
                     speakWithMediaPlayer(message)
                 }
             }
         } else {
-            sb.appendLine("❓ 未知人物（${(bestFace.confidence * 100).toInt()}%）")
+            tvResult.text = "未偵測到人臉"
         }
-
-        tvResult.text = sb.toString().trim()
     }
 
-    // ===== 連線測試 =====
+    // ===== TTS 初始化 =====
 
-    private fun testConnection() {
-        tvStatus.text = "🔄 連線中..."
-        lifecycleScope.launch {
-            try {
-                val response = withContext(Dispatchers.IO) { ApiClient.faceApi.getStatus() }
-                if (response.isSuccessful) {
-                    val status = response.body()!!
-                    tvStatus.text = "✅ 已連線！已註冊 ${status.total_people} 人：${status.registered_faces}"
-                } else {
-                    tvStatus.text = "❌ 伺服器錯誤：${response.code()}"
-                }
-            } catch (e: Exception) {
-                tvStatus.text = "❌ 連線失敗：${e.message}"
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            var result = tts.setLanguage(Locale.TRADITIONAL_CHINESE)
+
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                result = tts.setLanguage(Locale.SIMPLIFIED_CHINESE)
             }
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                result = tts.setLanguage(Locale.US)
+            }
+
+            if (result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED) {
+                ttsReady = true
+                tts.setSpeechRate(1.0f)
+                tts.setPitch(1.0f)
+                Log.d(TAG, "✅ TTS 初始化成功")
+            } else {
+                Log.e(TAG, "❌ TTS 沒有可用語言")
+            }
+        } else {
+            Log.e(TAG, "❌ TTS 初始化失敗")
         }
     }
+
+    // ===== 備用語音播報 =====
 
     private fun speakWithMediaPlayer(text: String) {
         try {
             val url = "https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-TW&client=tw-ob&q=${
                 java.net.URLEncoder.encode(text, "UTF-8")
             }"
-
             val mediaPlayer = MediaPlayer()
             mediaPlayer.setAudioAttributes(
                 AudioAttributes.Builder()
@@ -381,48 +346,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             mediaPlayer.setOnPreparedListener { it.start() }
             mediaPlayer.setOnCompletionListener { it.release() }
             mediaPlayer.prepareAsync()
-            Log.d(TAG, "🔊 MediaPlayer 備用播報：$text")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ MediaPlayer 播報失敗：${e.message}")
+            Log.e(TAG, "MediaPlayer 播報失敗：${e.message}")
         }
     }
 
-    override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) {
-            // 先嘗試繁體中文
-            var result = tts.setLanguage(Locale.TRADITIONAL_CHINESE)
-
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                // 再嘗試簡體中文
-                result = tts.setLanguage(Locale.SIMPLIFIED_CHINESE)
-            }
-
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                // 再嘗試英文
-                result = tts.setLanguage(Locale.US)
-            }
-
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Log.e(TAG, "❌ TTS：沒有任何語言可用")
-                runOnUiThread {
-                    tvStatus.text = tvStatus.text.toString() + "\n⚠️ 語音引擎不可用"
-                }
-            } else {
-                // 設定語速和音量
-                tts.setSpeechRate(1.0f)
-                tts.setPitch(1.0f)
-                Log.d(TAG, "✅ TTS 初始化成功，語言：${tts.voice?.locale}")
-
-                // 測試播報一句
-                tts.speak("語音系統已就緒", TextToSpeech.QUEUE_FLUSH, null, "init")
-            }
-        } else {
-            Log.e(TAG, "❌ TTS 初始化失敗，status=$status")
-            runOnUiThread {
-                tvStatus.text = tvStatus.text.toString() + "\n❌ 語音引擎初始化失敗"
-            }
-        }
-    }
+    // ===== 權限 =====
 
     override fun onRequestPermissionsResult(
         requestCode: Int, permissions: Array<out String>, grantResults: IntArray
@@ -433,7 +362,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         ) {
             startCamera()
         } else {
-            Toast.makeText(this, "需要相機權限才能使用", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "需要相機權限", Toast.LENGTH_LONG).show()
         }
     }
 
